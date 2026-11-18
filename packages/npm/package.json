@@ -1,0 +1,41 @@
+{
+  "name": "deplatch",
+  "version": "0.1.0",
+  "description": "Check dependencies before you trust them. Blocks AI-hallucinated and look-alike npm/PyPI packages before install, in your terminal, your AI agent, and CI.",
+  "keywords": [
+    "security",
+    "supply-chain",
+    "slopsquatting",
+    "typosquatting",
+    "dependencies",
+    "ai-agents",
+    "kiro",
+    "npm",
+    "pypi"
+  ],
+  "license": "MIT",
+  "author": "Abdul Hadi",
+  "homepage": "https://github.com/deplatch/deplatch#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/deplatch/deplatch.git",
+    "directory": "packages/npm"
+  },
+  "bugs": "https://github.com/deplatch/deplatch/issues",
+  "bin": {
+    "deplatch": "bin/deplatch.js"
+  },
+  "main": "src/index.js",
+  "files": [
+    "bin",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "DepLatch: check packages before install",
+      "description": "Before the agent runs any shell command, block installs of packages that do not exist or look like impostors.",
+      "trigger": "PreToolUse",
+      "matcher": "shell",
+      "action": { "type": "command", "command": "node packages/npm/bin/deplatch.js hook" },
+      "timeout": 30
+    },
+    {
+      "name": "Run tests when DepLatch code changes",
+      "description": "Re-run the Node test suite whenever the agent saves a source file.",
+      "trigger": "PostFileSave",
+      "matcher": "packages/npm/(src|bin|test)/.*\\.js$",
+      "action": { "type": "command", "command": "npm test --prefix packages/npm" },
+      "timeout": 120
+    },
+    {
+      "name": "Keep the Python port in sync",
+      "description": "When the agent changes Node logic, remind it to mirror the change in Python (tech.md: two implementations, one behaviour).",
+      "trigger": "PostFileSave",
+      "matcher": "packages/npm/src/(parse|verdict|similarity|registry)\\.js$",
+      "action": {
+        "type": "agent",
+        "prompt": "You just changed core DepLatch logic in packages/npm. Make the same change in packages/pypi/src/deplatch/core.py, then run both test suites. Verdicts, reason codes, messages and exit codes must stay identical."
+      }
+    }
+  ]
+}

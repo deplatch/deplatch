@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/deplatch/trustfile/schema/0.1/trustfile.schema.json",
+  "title": "trustfile",
+  "description": "An open, tool-neutral report of whether a project's dependencies can be trusted. Any IDE, agent, CLI or CI system may write or read it, the way OpenAPI describes APIs.",
+  "type": "object",
+  "required": ["trustfile", "generatedAt", "generator", "summary", "packages"],
+  "properties": {
+    "trustfile": { "const": "0.1", "description": "Format version." },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "generator": {
+      "type": "object",
+      "required": ["name", "version"],
+      "properties": { "name": { "type": "string" }, "version": { "type": "string" } }
+    },
+    "policy": { "$ref": "#/$defs/policy" },
+    "summary": {
+      "type": "object",
+      "required": ["verified", "review", "blocked"],
+      "properties": {
+        "verified": { "type": "integer", "minimum": 0 },
+        "review": { "type": "integer", "minimum": 0 },
+        "blocked": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "packages": { "type": "array", "items": { "$ref": "#/$defs/package" } }
+  },
+  "$defs": {
+    "policy": {
+      "type": "object",
+      "properties": {
+        "minAgeDays": { "type": "integer", "minimum": 0, "description": "Packages first published more recently than this go to review." },
+        "requireRepository": { "type": "boolean" },
+        "onReview": { "enum": ["warn", "block"] },
+        "onRegistryError": { "enum": ["review", "block"] },
+        "allow": { "type": "array", "items": { "type": "string", "pattern": "^(npm|pypi):.+$" } },
+        "deny": { "type": "array", "items": { "type": "string", "pattern": "^(npm|pypi):.+$" } }
+      }
+    },
+    "package": {
+      "type": "object",
+      "required": ["ecosystem", "name", "verdict", "reasons", "evidence"],
+      "properties": {
+        "ecosystem": { "enum": ["npm", "pypi"] },
+        "name": { "type": "string", "minLength": 1 },
+        "verdict": { "enum": ["verified", "review", "blocked"] },
+        "source": { "type": "string", "description": "Where the dependency was found, e.g. package.json#dependencies." },
+        "reasons": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["code", "severity", "message"],
+            "properties": {
+              "code": { "enum": ["NOT_FOUND", "DID_YOU_MEAN", "TOO_NEW", "LOOKALIKE", "NO_REPOSITORY", "DEPRECATED", "REGISTRY_ERROR", "ALLOWLISTED", "DENYLISTED"] },
+              "severity": { "enum": ["info", "review", "block"] },
+              "message": { "type": "string", "description": "Plain-language explanation a human can act on." }
+            }
+          }
+        },
+        "evidence": {
+          "type": "object",
+          "properties": {
+            "exists": { "type": ["boolean", "null"], "description": "null means the registry could not be checked." },
+            "latestVersion": { "type": ["string", "null"] },
+            "createdAt": { "type": ["string", "null"] },
+            "ageDays": { "type": ["integer", "null"] },
+            "repository": { "type": ["string", "null"] },
+            "deprecated": { "type": "boolean" }
+          }
+        }
+      }
+    }
+  }
+}

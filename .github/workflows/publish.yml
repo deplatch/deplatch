@@ -1,0 +1,35 @@
+# Publishes both packages when a GitHub release is published.
+# No long-lived tokens: PyPI uses Trusted Publishing (OIDC).
+# npm: after the first manual publish, enable Trusted Publishing for this
+# repo and workflow on npmjs.com (package settings), then this job needs no token.
+name: publish
+on:
+  release:
+    types: [published]
+permissions:
+  contents: read
+  id-token: write
+jobs:
+  pypi:
+    runs-on: ubuntu-latest
+    environment: pypi
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: python -m pip install build && python -m build
+        working-directory: packages/pypi
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with: { packages-dir: packages/pypi/dist }
+  npm:
+    # Turn on by setting the repository variable NPM_TRUSTED_PUBLISHING=true
+    # after Trusted Publishing is configured on npmjs.com.
+    if: ${{ vars.NPM_TRUSTED_PUBLISHING == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, registry-url: "https://registry.npmjs.org" }
+      - run: npm install -g npm@latest
+      - run: npm publish --provenance --access public
+        working-directory: packages/npm
