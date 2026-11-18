@@ -2,6 +2,9 @@
 
 **Check dependencies before you trust them.**
 
+**[Try the Playground →](https://deplatch.github.io/deplatch/)**  
+No install. Paste a package name, an install command, a `package.json`, or a `requirements.txt`. Works on mobile.
+
 AI coding assistants sometimes invent package names that do not exist. Attackers watch for those names, register them, and fill them with malware. This is called *slopsquatting*. DepLatch stops these installs before they happen: in your terminal, inside your AI agent, and in CI.
 
 ```

@@ -19,12 +19,12 @@
     },
     {
       "name": "Keep the Python port in sync",
-      "description": "When the agent changes Node logic, remind it to mirror the change in Python (tech.md: two implementations, one behaviour).",
+      "description": "When the agent changes Node logic, remind it to mirror the change in Python (tech.md: two implementations, one behaviour) and regenerate the ESM files.",
       "trigger": "PostFileSave",
       "matcher": "packages/npm/src/(parse|verdict|similarity|registry)\\.js$",
       "action": {
         "type": "agent",
-        "prompt": "You just changed core DepLatch logic in packages/npm. Make the same change in packages/pypi/src/deplatch/core.py, then run both test suites. Verdicts, reason codes, messages and exit codes must stay identical."
+        "prompt": "You just changed core DepLatch logic in packages/npm. Do three things in order: (1) run `node scripts/gen-esm.js` to regenerate web/lib/*.esm.js from the updated sources, (2) make the same logic change in packages/pypi/src/deplatch/core.py, (3) run both test suites (`npm test --prefix packages/npm` and the Python suite). Verdicts, reason codes, messages and exit codes must stay identical across all three."
       }
     }
   ]

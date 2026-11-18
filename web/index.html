@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DepLatch Playground</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #f8f9fa;
+      --surface: #ffffff;
+      --border: #dee2e6;
+      --text: #212529;
+      --text-muted: #6c757d;
+      --accent: #0d6efd;
+      --verified-bg: #d1e7dd;
+      --verified-text: #0a3622;
+      --review-bg: #fff3cd;
+      --review-text: #664d03;
+      --blocked-bg: #f8d7da;
+      --blocked-text: #58151c;
+      --radius: 6px;
+      --shadow: 0 1px 3px rgba(0,0,0,.08);
+    }
+
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 16px;
+      line-height: 1.5;
+      color: var(--text);
+      background: var(--bg);
+      min-height: 100vh;
+    }
+
+    .page {
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 1rem;
+    }
+
+    header {
+      margin-bottom: 1.5rem;
+    }
+
+    header h1 {
+      font-size: 1.5rem;
+      font-weight: 700;
+    }
+
+    header p {
+      color: var(--text-muted);
+      margin-top: .25rem;
+      font-size: .9rem;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1rem;
+      margin-bottom: 1rem;
+      box-shadow: var(--shadow);
+    }
+
+    label {
+      display: block;
+      font-weight: 600;
+      margin-bottom: .4rem;
+      font-size: .9rem;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 120px;
+      padding: .6rem .75rem;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      font-family: ui-monospace, monospace;
+      font-size: .85rem;
+      resize: vertical;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    textarea:focus {
+      outline: 2px solid var(--accent);
+      outline-offset: 1px;
+    }
+
+    .detect-row {
+      display: flex;
+      align-items: center;
+      gap: .75rem;
+      margin-top: .5rem;
+      flex-wrap: wrap;
+    }
+
+    .detect-label {
+      font-size: .8rem;
+      color: var(--text-muted);
+    }
+
+    .detect-label span {
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .ecosystem-wrap {
+      display: flex;
+      align-items: center;
+      gap: .4rem;
+      font-size: .85rem;
+    }
+
+    .ecosystem-wrap label {
+      font-weight: normal;
+      margin: 0;
+    }
+
+    select {
+      padding: .3rem .5rem;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      font-size: .85rem;
+      background: var(--surface);
+      color: var(--text);
+      cursor: pointer;
+    }
+
+    details {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface);
+      margin-bottom: 1rem;
+      box-shadow: var(--shadow);
+    }
+
+    summary {
+      padding: .75rem 1rem;
+      font-weight: 600;
+      font-size: .9rem;
+      cursor: pointer;
+      user-select: none;
+      list-style: none;
+    }
+
+    summary::before {
+      content: '▸ ';
+    }
+
+    details[open] summary::before {
+      content: '▾ ';
+    }
+
+    .policy-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: .75rem 1rem;
+      padding: 0 1rem 1rem;
+    }
+
+    @media (max-width: 480px) {
+      .policy-grid { grid-template-columns: 1fr; }
+    }
+
+    .policy-field label {
+      font-weight: normal;
+      font-size: .85rem;
+      margin-bottom: .25rem;
+    }
+
+    .policy-field input[type="number"],
+    .policy-field select {
+      width: 100%;
+    }
+
+    .policy-field.checkbox-field {
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+    }
+
+    .policy-field.checkbox-field label {
+      margin: 0;
+    }
+
+    /* Summary bar */
+    .summary-bar {
+      display: none;
+      align-items: center;
+      gap: 1rem;
+      padding: .6rem 1rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      margin-bottom: 1rem;
+      font-size: .9rem;
+      flex-wrap: wrap;
+      box-shadow: var(--shadow);
+    }
+
+    .summary-bar.visible { display: flex; }
+
+    .summary-count { font-weight: 600; }
+    .summary-count.verified { color: var(--verified-text); }
+    .summary-count.review   { color: #7a4f00; }
+    .summary-count.blocked  { color: var(--blocked-text); }
+
+    .summary-bar .dl-btn {
+      margin-left: auto;
+    }
+
+    /* Download button */
+    .dl-btn {
+      display: none;
+      padding: .35rem .9rem;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: var(--radius);
+      font-size: .85rem;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .dl-btn.visible { display: inline-block; }
+
+    /* Results list */
+    .results { margin-bottom: 1rem; }
+
+    .loading {
+      text-align: center;
+      color: var(--text-muted);
+      padding: 1.5rem;
+      font-size: .9rem;
+    }
+
+    .pkg-row {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: .75rem 1rem;
+      margin-bottom: .5rem;
+      box-shadow: var(--shadow);
+    }
+
+    .pkg-header {
+      display: flex;
+      align-items: center;
+      gap: .6rem;
+      flex-wrap: wrap;
+    }
+
+    .eco-badge {
+      font-size: .7rem;
+      font-weight: 700;
+      padding: .1rem .4rem;
+      border-radius: 3px;
+      background: #e9ecef;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      flex-shrink: 0;
+    }
+
+    .pkg-name {
+      font-family: ui-monospace, monospace;
+      font-weight: 600;
+      font-size: .95rem;
+      word-break: break-all;
+    }
+
+    .verdict-badge {
+      font-size: .78rem;
+      font-weight: 700;
+      padding: .2rem .55rem;
+      border-radius: 3px;
+      flex-shrink: 0;
+      margin-left: auto;
+    }
+
+    .verdict-badge.verified {
+      background: var(--verified-bg);
+      color: var(--verified-text);
+    }
+
+    .verdict-badge.review {
+      background: var(--review-bg);
+      color: var(--review-text);
+    }
+
+    .verdict-badge.blocked {
+      background: var(--blocked-bg);
+      color: var(--blocked-text);
+    }
+
+    .pkg-row.blocked {
+      border-left: 4px solid #dc3545;
+    }
+
+    .pkg-row.review {
+      border-left: 4px solid #ffc107;
+    }
+
+    .pkg-row.verified {
+      border-left: 4px solid #198754;
+    }
+
+    .reasons {
+      margin-top: .5rem;
+      padding-left: .25rem;
+    }
+
+    .reason {
+      font-size: .85rem;
+      color: var(--text-muted);
+      padding: .15rem 0;
+    }
+
+    .reason.block { color: var(--blocked-text); }
+    .reason.review { color: #7a4f00; }
+    .reason.info { color: var(--text-muted); }
+
+    .reason-code {
+      font-family: ui-monospace, monospace;
+      font-size: .75rem;
+      opacity: .7;
+      margin-right: .3rem;
+    }
+
+    footer {
+      text-align: center;
+      font-size: .78rem;
+      color: var(--text-muted);
+      padding: 1.5rem 0 2rem;
+    }
+
+    footer a { color: var(--accent); }
+
+    @media (max-width: 375px) {
+      .pkg-header { gap: .4rem; }
+      .verdict-badge { margin-left: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header>
+      <h1>DepLatch Playground</h1>
+      <p>Check npm and PyPI packages for hallucinated names and look-alikes — right in your browser.</p>
+    </header>
+
+    <main>
+      <div class="card">
+        <label for="pkg-input">Paste package names, an install command, a package.json, or a requirements.txt</label>
+        <textarea id="pkg-input" placeholder="npm install react ai-super-helper&#10;— or —&#10;requests&#10;numpy&#10;fakelib99" spellcheck="false" autocomplete="off"></textarea>
+        <div class="detect-row">
+          <div class="detect-label" id="detect-label" aria-live="polite"></div>
+          <div class="ecosystem-wrap" id="ecosystem-wrap" style="display:none">
+            <label for="ecosystem-select">Ecosystem:</label>
+            <select id="ecosystem-select">
+              <option value="npm">npm</option>
+              <option value="pypi">PyPI</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <details id="policy-panel">
+        <summary>Policy settings</summary>
+        <div class="policy-grid">
+          <div class="policy-field">
+            <label for="min-age">Minimum age (days)</label>
+            <input type="number" id="min-age" value="30" min="0" max="3650">
+          </div>
+          <div class="policy-field">
+            <label for="on-review">On review</label>
+            <select id="on-review">
+              <option value="warn">warn (allow install)</option>
+              <option value="block">block (stop install)</option>
+            </select>
+          </div>
+          <div class="policy-field checkbox-field">
+            <input type="checkbox" id="require-repo">
+            <label for="require-repo">Require source repository</label>
+          </div>
+        </div>
+      </details>
+
+      <div class="summary-bar" id="summary-bar" role="status" aria-live="polite">
+        <span class="summary-count verified" id="count-verified">0 Verified</span>
+        <span class="summary-count review"   id="count-review">0 Review</span>
+        <span class="summary-count blocked"  id="count-blocked">0 Blocked</span>
+        <button class="dl-btn visible" id="dl-btn" type="button">Download trustfile.json</button>
+      </div>
+
+      <div class="results" id="results" aria-live="polite"></div>
+    </main>
+
+    <footer>
+      <a href="https://github.com/deplatch/deplatch" target="_blank" rel="noopener">DepLatch on GitHub</a>
+      &nbsp;·&nbsp; Checks run in your browser. No data is sent to DepLatch servers.
+    </footer>
+  </div>
+
+  <noscript>
+    <style>.page { display: none; }</style>
+    <div style="font-family:system-ui;padding:2rem;text-align:center">
+      <strong>JavaScript is required</strong> to run DepLatch Playground.
+    </div>
+  </noscript>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>

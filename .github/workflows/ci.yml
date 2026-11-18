@@ -9,6 +9,8 @@ jobs:
         with: { node-version: 22 }
       - uses: actions/setup-python@v5
         with: { python-version: "3.12" }
+      - name: Regenerate ESM files
+        run: node scripts/gen-esm.js --check
       - run: npm test --prefix packages/npm
       - run: python -m unittest discover -s tests
         working-directory: packages/pypi
