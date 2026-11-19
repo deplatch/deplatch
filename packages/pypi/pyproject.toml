@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "deplatch"
-version = "0.1.0"
+version = "0.2.0"
 description = "Check dependencies before you trust them. Blocks AI-hallucinated and look-alike PyPI/npm packages before install, in your terminal, your AI agent, and CI."
 readme = "README.md"
 requires-python = ">=3.9"

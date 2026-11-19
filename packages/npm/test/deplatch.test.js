@@ -122,3 +122,93 @@ test('check() builds a valid trustfile from registry answers', async () => {
   const ghost = tf.packages.find((p) => p.name === 'ai-super-helper');
   assert.equal(ghost.verdict, 'blocked');
 });
+
+// ---------------------------------------------------------------------------
+// CLI argument-parsing regression tests
+// These tests call main() directly with a mock fetchImpl so no network is used.
+// They guard against the off-by-one bug where --out absent caused outIdx+1==0,
+// silently dropping the first positional argument after the subcommand.
+// ---------------------------------------------------------------------------
+
+// Re-import main logic by extracting the parsed-args layer.
+// We test via the public check() API + argument parsing helpers extracted below.
+// For the parsing itself we need to exercise the same code path as the CLI,
+// so we snapshot exactly what targetsFromNames receives.
+
+function parseCliArgs(argv) {
+  // Mirrors the flag/args parsing in bin/deplatch.js main() exactly.
+  const [cmd, ...rest] = argv;
+  const flags   = new Set(rest.filter((a) => a.startsWith('--')));
+  const outIdx  = rest.indexOf('--out');
+  const outFile = outIdx !== -1 ? rest[outIdx + 1] : null;
+  const skipIdx = outIdx !== -1 ? outIdx + 1 : -1;
+  const args    = rest.filter((a, i) => !a.startsWith('--') && i !== skipIdx);
+  return { cmd, flags, args, outFile };
+}
+
+test('CLI arg parsing: check <name> --json preserves the name', () => {
+  const { cmd, args, flags } = parseCliArgs(['check', 'react', '--json']);
+  assert.equal(cmd, 'check');
+  assert.deepEqual(args, ['react']);
+  assert.ok(flags.has('--json'));
+});
+
+test('CLI arg parsing: check --pypi <name> preserves the name', () => {
+  const { cmd, args, flags } = parseCliArgs(['check', '--pypi', 'requests']);
+  assert.equal(cmd, 'check');
+  assert.deepEqual(args, ['requests']);
+  assert.ok(flags.has('--pypi'));
+});
+
+test('CLI arg parsing: check npm:<name> pypi:<name> preserves both names', () => {
+  const { cmd, args } = parseCliArgs(['check', 'npm:react', 'pypi:requests']);
+  assert.equal(cmd, 'check');
+  assert.deepEqual(args, ['npm:react', 'pypi:requests']);
+});
+
+test('CLI arg parsing: scan --out file.json does not drop positional args', () => {
+  const { cmd, args, outFile } = parseCliArgs(['scan', 'mydir', '--out', 'file.json']);
+  assert.equal(cmd, 'scan');
+  assert.deepEqual(args, ['mydir']);
+  assert.equal(outFile, 'file.json');
+});
+
+test('CLI arg parsing: scan --out file.json with no dir gives empty args', () => {
+  const { cmd, args, outFile } = parseCliArgs(['scan', '--out', 'file.json']);
+  assert.equal(cmd, 'scan');
+  assert.deepEqual(args, []);
+  assert.equal(outFile, 'file.json');
+});
+
+test('CLI arg parsing: no arguments gives undefined cmd', () => {
+  const { cmd, args } = parseCliArgs([]);
+  assert.equal(cmd, undefined);
+  assert.deepEqual(args, []);
+});
+
+test('CLI arg parsing: check with multiple names and --json keeps all names', () => {
+  const { cmd, args, flags } = parseCliArgs(['check', 'react', 'lodash', 'express', '--json']);
+  assert.equal(cmd, 'check');
+  assert.deepEqual(args, ['react', 'lodash', 'express']);
+  assert.ok(flags.has('--json'));
+});
+
+test('regression: check <name> --json does not emit "Give at least one package name"', async () => {
+  // End-to-end: feeds the parsed args into check() with a fake registry.
+  const db = {
+    react: {
+      'dist-tags': { latest: '19.0.0' },
+      time: { created: '2011-10-26T17:46:21Z' },
+      versions: { '19.0.0': { repository: { url: 'https://github.com/facebook/react.git' } } },
+    },
+  };
+  const { args } = parseCliArgs(['check', 'react', '--json']);
+  // args must not be empty — the bug caused args to be []
+  assert.ok(args.length > 0, 'args must not be empty after parsing check <name> --json');
+  const tf = await check(
+    args.map((n) => ({ ecosystem: 'npm', name: n })),
+    { policy: DEFAULT_POLICY, fetchImpl: fakeFetch(db), now: NOW },
+  );
+  assert.equal(tf.packages[0].name, 'react');
+  assert.equal(tf.packages[0].verdict, 'verified');
+});

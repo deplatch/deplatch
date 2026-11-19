@@ -13,9 +13,13 @@ import shlex
 import urllib.error
 import urllib.parse
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Callable, Optional
 
 from . import __version__
 from .popular import NPM, PYPI
+
+CONCURRENCY = 8
 
 TRUSTFILE_VERSION = "0.1"
 DEFAULT_POLICY = {
@@ -238,28 +242,61 @@ def decide(eco: str, name: str, evidence=None, error=None, policy=None) -> dict:
     return {"verdict": "blocked" if policy["onReview"] == "block" else "review", "reasons": reasons}
 
 
-def check(targets: list[dict], policy=None, now=None, get_json=_get_json) -> dict:
+def check(targets: list[dict], policy=None, now=None, get_json=_get_json,
+          on_progress: Optional[Callable] = None) -> dict:
     policy = {**DEFAULT_POLICY, **(policy or {})}
     now = now or _dt.datetime.now(_dt.timezone.utc)
-    seen, packages = set(), []
+
+    # Deduplicate, merging sources
+    by_key: dict[str, dict] = {}
+    key_order: list[str] = []
     for t in targets:
         k = f'{t["ecosystem"]}:{t["name"].lower()}'
-        if k in seen:
-            continue
-        seen.add(k)
+        if k not in by_key:
+            by_key[k] = {**t, '_sources': []}
+            key_order.append(k)
+        if t.get('source'):
+            by_key[k]['_sources'].append(t['source'])
+
+    unique: list[dict] = []
+    for k in key_order:
+        t = by_key[k]
+        srcs = list(dict.fromkeys(t.pop('_sources')))  # dedupe while preserving order
+        if len(srcs) == 1 and not t.get('source'):
+            t['source'] = srcs[0]
+        elif len(srcs) > 1:
+            t['source'] = ', '.join(srcs)
+        unique.append(t)
+
+    done_count = 0
+    packages: list[Optional[dict]] = [None] * len(unique)
+
+    def check_one(idx: int, t: dict) -> tuple[int, dict]:
         evidence, error = None, None
         try:
-            evidence = lookup(t["ecosystem"], t["name"], now=now, get_json=get_json)
-        except Exception as e:  # network, DNS, JSON errors all mean "could not check"
+            evidence = lookup(t['ecosystem'], t['name'], now=now, get_json=get_json)
+        except Exception as e:
             error = str(e)
-        d = decide(t["ecosystem"], t["name"], evidence, error, policy)
-        entry = {"ecosystem": t["ecosystem"], "name": t["name"], **d, "evidence": evidence or {"exists": None}}
-        if t.get("source"):
-            entry["source"] = t["source"]
-        packages.append(entry)
-    summary = {"verified": 0, "review": 0, "blocked": 0}
+        d = decide(t['ecosystem'], t['name'], evidence, error, policy)
+        entry = {'ecosystem': t['ecosystem'], 'name': t['name'], **d,
+                 'evidence': evidence or {'exists': None}}
+        if t.get('source'):
+            entry['source'] = t['source']
+        return idx, entry
+
+    with ThreadPoolExecutor(max_workers=CONCURRENCY) as ex:
+        futures = {ex.submit(check_one, i, t): i for i, t in enumerate(unique)}
+        for fut in as_completed(futures):
+            idx, entry = fut.result()
+            packages[idx] = entry
+            done_count += 1
+            if on_progress:
+                on_progress(done_count, len(unique))
+
+    summary = {'verified': 0, 'review': 0, 'blocked': 0}
     for p in packages:
-        summary[p["verdict"]] += 1
-    return {"trustfile": TRUSTFILE_VERSION, "generatedAt": now.isoformat().replace("+00:00", "Z"),
-            "generator": {"name": "deplatch", "version": __version__},
-            "policy": policy, "summary": summary, "packages": packages}
+        summary[p['verdict']] += 1  # type: ignore[index]
+
+    return {'trustfile': TRUSTFILE_VERSION, 'generatedAt': now.isoformat().replace('+00:00', 'Z'),
+            'generator': {'name': 'deplatch', 'version': __version__},
+            'policy': policy, 'summary': summary, 'packages': packages}

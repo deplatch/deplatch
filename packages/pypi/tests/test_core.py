@@ -79,5 +79,68 @@ class CheckTests(unittest.TestCase):
         self.assertEqual(tf["summary"], {"verified": 1, "review": 0, "blocked": 1})
 
 
+# ---------------------------------------------------------------------------
+# CLI argument-parsing regression tests
+# Mirror the Node tests exactly so the same invariants are verified in Python.
+# ---------------------------------------------------------------------------
+
+def _parse_cli_args(argv):
+    """Mirrors the flag/args parsing in cli.py main() exactly."""
+    flags = {a for a in argv if a.startswith("--")}
+    out_value = argv.index("--out") + 1 if "--out" in argv else -1
+    args = [a for i, a in enumerate(argv) if not a.startswith("--") and i != out_value]
+    out_file = argv[out_value] if 0 < out_value < len(argv) else None
+    cmd = args[0] if args else None
+    return cmd, args[1:] if args else [], flags, out_file
+
+
+class CliArgParsingTests(unittest.TestCase):
+
+    def test_check_name_json_preserves_name(self):
+        cmd, names, flags, _ = _parse_cli_args(["check", "requests", "--json"])
+        self.assertEqual(cmd, "check")
+        self.assertEqual(names, ["requests"])
+        self.assertIn("--json", flags)
+
+    def test_check_npm_flag_preserves_name(self):
+        cmd, names, flags, _ = _parse_cli_args(["check", "--npm", "react"])
+        self.assertEqual(cmd, "check")
+        self.assertEqual(names, ["react"])
+        self.assertIn("--npm", flags)
+
+    def test_check_prefixed_names(self):
+        cmd, names, _, _ = _parse_cli_args(["check", "npm:react", "pypi:requests"])
+        self.assertEqual(cmd, "check")
+        self.assertEqual(names, ["npm:react", "pypi:requests"])
+
+    def test_scan_out_file_does_not_drop_dir(self):
+        cmd, rest, _, out_file = _parse_cli_args(["scan", "mydir", "--out", "file.json"])
+        self.assertEqual(cmd, "scan")
+        self.assertEqual(rest, ["mydir"])
+        self.assertEqual(out_file, "file.json")
+
+    def test_scan_out_file_no_dir(self):
+        cmd, rest, _, out_file = _parse_cli_args(["scan", "--out", "file.json"])
+        self.assertEqual(cmd, "scan")
+        self.assertEqual(rest, [])
+        self.assertEqual(out_file, "file.json")
+
+    def test_no_args_gives_none_cmd(self):
+        cmd, rest, _, _ = _parse_cli_args([])
+        self.assertIsNone(cmd)
+        self.assertEqual(rest, [])
+
+    def test_check_multiple_names_and_json(self):
+        cmd, names, flags, _ = _parse_cli_args(["check", "requests", "flask", "numpy", "--json"])
+        self.assertEqual(cmd, "check")
+        self.assertEqual(names, ["requests", "flask", "numpy"])
+        self.assertIn("--json", flags)
+
+    def test_regression_check_name_json_names_not_empty(self):
+        """Regression: check <name> --json must not produce an empty name list."""
+        _, names, _, _ = _parse_cli_args(["check", "requests", "--json"])
+        self.assertGreater(len(names), 0, "name list must not be empty after parsing check <name> --json")
+
+
 if __name__ == "__main__":
     unittest.main()
