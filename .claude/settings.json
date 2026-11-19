@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PROJECT_DIR}/packages/npm/bin/deplatch.js\" hook",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}
